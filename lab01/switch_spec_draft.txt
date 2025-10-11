@@ -1,0 +1,14 @@
+1. Module shall deassert all output signal when reset signal is active.
+
+2. Module shall ignore two uart packets when one of its start_bits is incorrect.
+
+3. Module shall ignore two uart packets when one of its parity_bits is incorrect.
+
+4. Module shall ignore two uart packets when one of its stop_bits is incorrect.
+
+5. Module shall hold all outputs high when programming mode is selected.
+
+6. Module shall store address and port combination sent as two bytes to serial input when programming mode is selected.
+
+7. Module shall direct both address and data sent as two bytes to serial input with accordance to stored address port combination when functional mode is selected.
+
