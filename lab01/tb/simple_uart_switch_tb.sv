@@ -24,15 +24,17 @@ module top;
 // Type definitions
 //------------------------------------------------------------------------------
 
-mailbox input_packets = new();
-mailbox output_packets = new();
+typedef bit stream_q [$];
+stream_q output_stream;
+stream_q input_stream;
+
 
 
 typedef struct packed {
-    bit start_bit = 1'b1;
-    bit [7:0] data = '0;
-    bit parity_bit = 1'b0;
-    bit stop_bit = 1'b0;
+    bit start_bit;
+    bit [7:0] data;
+    bit parity_bit;
+    bit stop_bit;
 } uart_frame_s;
 
 typedef struct {
@@ -124,12 +126,79 @@ function set_functional_mode();
 endfunction
 
 
-function encode_packet(bit start_bit, bit [7:0] data, bit parity_bit, bit stop_bit);
+function packet_s encode_packet(uart_frame_s address, uart_frame_s data);
     packet_s packet;
-
-    packet.
-    
+    packet.address = address;
+    packet.data = address;
+    return packet;
 endfunction
+
+function uart_frame_s encode_uart_frame(bit start_bit, bit [7:0] data, bit parity_bit, bit stop_bit);
+    uart_frame_s frame;
+    frame.start_bit = start_bit;
+    frame.data = data;
+    frame.parity_bit = parity_bit;
+    frame.stop_bit = stop_bit;
+    return frame;
+endfunction
+
+
+//------------------------
+// Frame sender
+//------------------------
+
+initial begin
+    uart_frame_s frame_to_send;
+    frame_to_send = encode_uart_frame(1'b1, 8'haa, 1'b1, 1'b1);
+    input_stream = ({input_stream, stream_q'(frame_to_send)});
+    frame_to_send = encode_uart_frame(1'b1, 8'h55, 1'b1, 1'b1);
+    input_stream = ({input_stream, stream_q'(frame_to_send)});
+    frame_to_send = encode_uart_frame(1'b1, 8'h12, 1'b1, 1'b1);
+    input_stream = ({input_stream, stream_q'(frame_to_send)});
+
+    forever begin
+        wait_clk(16);
+        @(negedge clk) begin
+            if (input_stream.size() > 0) begin
+                sin = input_stream.pop_front();
+            end
+        end
+    end
+
+end
+
+//------------------------
+// Frame receiver
+//------------------------
+
+initial begin
+
+    wait_clk(1);
+
+    forever begin
+
+        wait_clk(16);
+
+        output_stream.push_front(sin);
+    end
+end
+
+initial begin
+
+    uart_frame_s frame_out;
+    bit flag;
+
+    forever begin
+        @(posedge clk) begin
+            if (output_stream.size() >= 11) begin
+                flag = 1'b1;
+                frame_out = {uart_frame_s'({<<{output_stream[$-11:$]}})};
+                output_stream = output_stream[0:$-11];
+            end
+        end
+    end
+end
+
 
 
 //------------------------
@@ -150,6 +219,13 @@ end
 //------------------------------------------------------------------------------
 // Other functions
 //------------------------------------------------------------------------------
+
+task wait_clk(int clk_num);
+    for (int i=0; i < clk_num; i++) begin
+        @(posedge clk);
+    end
+endtask 
+
 
 // used to modify the color of the text printed on the terminal
 function void set_print_color ( print_color_t c );
