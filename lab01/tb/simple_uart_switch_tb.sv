@@ -25,10 +25,6 @@ module top;
 //------------------------------------------------------------------------------
 
 typedef bit stream_q [$];
-stream_q output_stream;
-stream_q input_stream;
-
-
 
 typedef struct packed {
     bit start_bit;
@@ -41,8 +37,6 @@ typedef struct {
     uart_frame_s address;
     uart_frame_s data;
 } packet_s;
-
-
 
 typedef enum bit {
     TEST_PASSED,
@@ -68,6 +62,14 @@ logic prog;
 logic sin;
 logic sout0;
 logic sout1;
+
+
+stream_q output_stream;
+stream_q input_stream;
+
+bit switch_memory [(2**8)-1:0];
+logic baud_clk;
+
 
 test_result_t        test_result = TEST_PASSED;
 
@@ -97,6 +99,26 @@ initial begin : clk_gen_blk
     end
 end
 
+initial begin : baud_clk_gen_blk
+    baud_clk = 0;
+    @(posedge rst_n);
+    @(posedge rst_n);
+    forever begin : baud_clk_frv_blk
+        repeat(16)@(posedge clk);
+        baud_clk = ~baud_clk;
+    end
+end
+
+
+initial begin : reset_gen_clk
+    rst_n = 1'b1;
+    @(posedge clk);
+    wait_clk(2);
+    rst_n = 1'b0;
+    wait_clk(2);
+    rst_n = 1'b1;
+end
+
 // timestamp monitor
 initial begin
     longint clk_counter;
@@ -117,13 +139,6 @@ end
 // Random data generation functions
 //---------------------------------
 
-function set_programming_mode();
-    prog = 1'b1;
-endfunction
-
-function set_functional_mode();
-    prog = 1'b0;
-endfunction
 
 
 function packet_s encode_packet(uart_frame_s address, uart_frame_s data);
@@ -142,28 +157,118 @@ function uart_frame_s encode_uart_frame(bit start_bit, bit [7:0] data, bit parit
     return frame;
 endfunction
 
+task send_packet(packet_s pkt);
+    stream_q packet_stream;
+
+
+    packet_stream = ({packet_stream, stream_q'(pkt.address)});
+
+    @(negedge clk);
+
+
+    for (int i = 0; i < 11; i++) begin
+        sin = packet_stream.pop_front();
+        repeat(16)@(negedge clk);
+
+    end
+
+    packet_stream = ({packet_stream, stream_q'(pkt.data)});
+
+    for (int i = 0; i < 11; i++) begin
+        sin = packet_stream.pop_front();
+        repeat(16)@(negedge clk);
+
+    end
+
+endtask
+
+task program_switch();
+
+    packet_s config_pkt;
+
+    prog = 1'b1;
+
+    for (int i = 0; i < (2**8); i++) begin
+        switch_memory[i] = 1'(0);
+        // switch_memory[i] = 1'($random());
+
+    end
+
+    for (int i = 0; i < (2**8); i++) begin
+
+
+        config_pkt.address = encode_uart_frame(1'b0, 8'(i), get_parity(8'(i)), 1'b1);
+        config_pkt.data = encode_uart_frame(1'b0, 8'(switch_memory[i]), get_parity(8'(switch_memory[i])), 1'b1);
+
+        send_packet(config_pkt);
+
+    end
+
+    prog = 1'b0;
+
+
+
+endtask
+
 
 //------------------------
 // Frame sender
 //------------------------
 
 initial begin
-    uart_frame_s frame_to_send;
-    frame_to_send = encode_uart_frame(1'b1, 8'haa, 1'b1, 1'b1);
-    input_stream = ({input_stream, stream_q'(frame_to_send)});
-    frame_to_send = encode_uart_frame(1'b1, 8'h55, 1'b1, 1'b1);
-    input_stream = ({input_stream, stream_q'(frame_to_send)});
-    frame_to_send = encode_uart_frame(1'b1, 8'h12, 1'b1, 1'b1);
-    input_stream = ({input_stream, stream_q'(frame_to_send)});
 
-    forever begin
-        wait_clk(16);
-        @(negedge clk) begin
-            if (input_stream.size() > 0) begin
-                sin = input_stream.pop_front();
-            end
-        end
+    packet_s test_packet;
+    bit [7:0] address;
+    bit [7:0] data;
+
+    sin = 1'b1;
+    prog = 1'b0;
+
+    // wait for reset
+    @(posedge rst_n);
+    wait_clk(16);
+
+    // program_switch();
+
+    for (int i = 0; i <= 8'hff; i++) begin
+
+        address = 8'($random());
+        data = 8'($random());
+
+        // test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+        // test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+
+        test_packet.address = encode_uart_frame(1'b0, 8'(i), get_parity(8'(i)), 1'b1);
+        test_packet.data = encode_uart_frame(1'b0, 8'(i), get_parity(8'(i)), 1'b1);
+
+
+
+        send_packet(test_packet);
+
+
+
     end
+
+    $stop();
+
+    // uart_frame_s frame_to_send;
+    // frame_to_send = encode_uart_frame(1'b1, 8'haa, 1'b1, 1'b1);
+    // input_stream = ({input_stream, stream_q'(frame_to_send)});
+    // frame_to_send = encode_uart_frame(1'b1, 8'h55, 1'b1, 1'b1);
+    // input_stream = ({input_stream, stream_q'(frame_to_send)});
+    // frame_to_send = encode_uart_frame(1'b1, 8'h12, 1'b1, 1'b1);
+    // input_stream = ({input_stream, stream_q'(frame_to_send)});
+
+    // @(negedge clk);
+
+
+    // forever begin
+    //     if (input_stream.size() > 0) begin
+    //         sin = input_stream.pop_front();
+    //     end
+
+    //     wait_clk(16);
+    // end
 
 end
 
@@ -172,16 +277,14 @@ end
 //------------------------
 
 initial begin
-
-    wait_clk(1);
-
+    @(posedge clk);
     forever begin
-
         wait_clk(16);
-
         output_stream.push_front(sin);
     end
 end
+
+
 
 initial begin
 
@@ -220,12 +323,22 @@ end
 // Other functions
 //------------------------------------------------------------------------------
 
+task reset_dut();
+    @(posedge clk)
+    rst_n = 1'b1;
+    wait_clk(2);
+    rst_n = 1'b0;
+    wait_clk(2);
+    rst_n = 1'b1;
+endtask
+
 task wait_clk(int clk_num);
-    for (int i=0; i < clk_num; i++) begin
-        @(posedge clk);
-    end
+    #(20*clk_num);
 endtask 
 
+function bit get_parity(bit [7:0] data);
+    return 1'(data % 2);
+endfunction 
 
 // used to modify the color of the text printed on the terminal
 function void set_print_color ( print_color_t c );
