@@ -151,7 +151,7 @@ endfunction
 function uart_frame_s encode_uart_frame(bit start_bit, bit [7:0] data, bit parity_bit, bit stop_bit);
     uart_frame_s frame;
     frame.start_bit = start_bit;
-    frame.data = data;
+    frame.data = {<<{data}};
     frame.parity_bit = parity_bit;
     frame.stop_bit = stop_bit;
     return frame;
@@ -163,14 +163,25 @@ task send_packet(packet_s pkt);
 
     packet_stream = ({packet_stream, stream_q'(pkt)});
 
-    @(negedge clk);
+    @(negedge clk)
 
-
-    for (int i = 0; i < 22; i++) begin
+    for (int i = 0; i < 11; i++) begin
         sin = packet_stream.pop_front();
         repeat(16)@(negedge clk);
 
     end
+
+
+
+    for (int i = 0; i < 11; i++) begin
+        sin = packet_stream.pop_front();
+        repeat(16)@(negedge clk);
+
+    end
+
+    repeat(16*22)@(negedge clk);
+
+
 
 endtask
 
@@ -181,7 +192,7 @@ task program_switch();
     prog = 1'b1;
 
     for (int i = 0; i < (2**8); i++) begin
-        switch_memory[i] = 1'(0);
+        switch_memory[i] = 1'(1);
         // switch_memory[i] = 1'($random());
 
     end
@@ -218,7 +229,6 @@ initial begin
 
     // wait for reset
     @(posedge rst_n);
-    wait_clk(16);
 
     // program_switch();
 
@@ -268,29 +278,32 @@ end
 // Frame receiver
 //------------------------
 
-initial begin
-    @(posedge clk);
-    forever begin
-        wait_clk(16);
-        output_stream.push_front(sin);
-    end
-end
-
-
 
 initial begin
 
+    stream_q output_stream;
     uart_frame_s frame_out;
-    bit flag;
+
+    @(posedge rst_n);
+
+    @(negedge sout0);
+    @(negedge clk);
 
     forever begin
-        @(posedge clk) begin
-            if (output_stream.size() >= 11) begin
-                flag = 1'b1;
-                frame_out = {uart_frame_s'({<<{output_stream[$-11:$]}})};
-                output_stream = output_stream[0:$-11];
-            end
+
+        output_stream.push_front(sout0);
+
+        repeat(16)@(negedge clk);
+
+        if (output_stream.size() >= 11) begin
+            frame_out = {uart_frame_s'({<<{output_stream[$-11:$]}})};
+            output_stream = output_stream[0:$-11];
+
+            frame_out.data = {<<{frame_out.data}};
+
+
         end
+
     end
 end
 
