@@ -161,20 +161,12 @@ task send_packet(packet_s pkt);
     stream_q packet_stream;
 
 
-    packet_stream = ({packet_stream, stream_q'(pkt.address)});
+    packet_stream = ({packet_stream, stream_q'(pkt)});
 
     @(negedge clk);
 
 
-    for (int i = 0; i < 11; i++) begin
-        sin = packet_stream.pop_front();
-        repeat(16)@(negedge clk);
-
-    end
-
-    packet_stream = ({packet_stream, stream_q'(pkt.data)});
-
-    for (int i = 0; i < 11; i++) begin
+    for (int i = 0; i < 22; i++) begin
         sin = packet_stream.pop_front();
         repeat(16)@(negedge clk);
 
