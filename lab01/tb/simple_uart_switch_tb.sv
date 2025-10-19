@@ -342,7 +342,7 @@ task wait_clk(int clk_num);
 endtask 
 
 function bit get_parity(bit [7:0] data);
-    return 1'(data % 2);
+    return ^data;
 endfunction 
 
 // used to modify the color of the text printed on the terminal
