@@ -24,6 +24,9 @@ module top;
 // Type definitions
 //------------------------------------------------------------------------------
 
+const bit TRUE = 1'b1;
+const bit FALSE = 1'b0;
+
 typedef bit stream_q [$];
 
 typedef struct packed {
@@ -33,10 +36,13 @@ typedef struct packed {
     bit stop_bit;
 } uart_frame_s;
 
-typedef struct {
+typedef struct packed {
     uart_frame_s address;
     uart_frame_s data;
 } packet_s;
+
+typedef packet_s packet_q [$];
+
 
 typedef enum bit {
     TEST_PASSED,
@@ -63,9 +69,11 @@ logic sin;
 logic sout0;
 logic sout1;
 
+packet_q sent_packets_q;
+packet_q received_packets_sout0_q;
+packet_q received_packets_sout1_q;
 
-stream_q output_stream;
-stream_q input_stream;
+packet_s ignored_pkt = packet_s'('1);
 
 bit switch_memory [(2**8)-1:0];
 logic baud_clk;
@@ -104,7 +112,7 @@ initial begin : baud_clk_gen_blk
     @(posedge rst_n);
     @(posedge rst_n);
     forever begin : baud_clk_frv_blk
-        repeat(16)@(posedge clk);
+        wait_clk(16);
         baud_clk = ~baud_clk;
     end
 end
@@ -159,57 +167,73 @@ endfunction
 
 task send_packet(packet_s pkt);
     stream_q packet_stream;
-
-
+    sent_packets_q.push_front(pkt);
     packet_stream = ({packet_stream, stream_q'(pkt)});
-
     @(negedge clk)
-
-    for (int i = 0; i < 11; i++) begin
+    for (int i = 0; i < 22; i++) begin
         sin = packet_stream.pop_front();
-        repeat(16)@(negedge clk);
-
+        wait_clk(16);
     end
-
-
-
-    for (int i = 0; i < 11; i++) begin
-        sin = packet_stream.pop_front();
-        repeat(16)@(negedge clk);
-
-    end
-
-    repeat(16*22)@(negedge clk);
-
-
-
 endtask
+
+task automatic extract_packet(ref logic serial_in, ref packet_q packet_queue);
+    stream_q bits_stream;
+    packet_s received_packet;
+    uart_frame_s received_address_frame;
+    uart_frame_s received_data_frame;
+    for (int i = 0; i < 22; i++) begin
+        bits_stream.push_front(serial_in);
+        wait_clk(16);
+    end
+    received_address_frame = {uart_frame_s'({<<{bits_stream[$-11:$]}})};
+    received_data_frame = {uart_frame_s'({<<{bits_stream[$-22:$-11]}})};
+    received_packet.address = received_address_frame;
+    received_packet.address.data = {>>{received_packet.address.data}};
+    received_packet.data = received_data_frame;
+    received_packet.data.data = {>>{received_packet.data.data}};
+    packet_queue.push_front(received_packet);
+    
+endtask
+
+function bit pck_is_correct(packet_s pck);
+
+    if (pck.address.start_bit != 1'b0) return FALSE;
+    if (pck.data.start_bit != 1'b0) return FALSE;
+    if (pck.address.stop_bit != 1'b1) return FALSE;
+    if (pck.data.stop_bit != 1'b1) return FALSE;
+    if (pck.address.parity_bit != get_parity(pck.address.data)) return FALSE;
+    if (pck.data.parity_bit != get_parity(pck.data.data)) return FALSE;
+
+    return TRUE;
+
+endfunction
+
+function bit get_port(packet_s pck);
+    bit [7:0] address;
+    address = {<<{pck.address.data}};
+    return switch_memory[address];
+endfunction 
+
+function bit get_parity(bit [7:0] data);
+    return ^data;
+endfunction 
+
+
 
 task program_switch();
 
     packet_s config_pkt;
-
     prog = 1'b1;
-
     for (int i = 0; i < (2**8); i++) begin
-        switch_memory[i] = 1'(1);
-        // switch_memory[i] = 1'($random());
-
+        switch_memory[i] = 1'($random());
     end
 
     for (int i = 0; i < (2**8); i++) begin
-
-
         config_pkt.address = encode_uart_frame(1'b0, 8'(i), get_parity(8'(i)), 1'b1);
         config_pkt.data = encode_uart_frame(1'b0, 8'(switch_memory[i]), get_parity(8'(switch_memory[i])), 1'b1);
-
         send_packet(config_pkt);
-
     end
-
     prog = 1'b0;
-
-
 
 endtask
 
@@ -229,91 +253,95 @@ initial begin
 
     // wait for reset
     @(posedge rst_n);
+    @(posedge clk);
 
-    // program_switch();
+    program_switch();
+
+    sent_packets_q = {};
+    received_packets_sout0_q = {};
+    received_packets_sout1_q = {};
 
     for (int i = 0; i <= 8'hff; i++) begin
-
         address = 8'($random());
         data = 8'($random());
-
-        // test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-        // test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-
-        test_packet.address = encode_uart_frame(1'b0, 8'(i), get_parity(8'(i)), 1'b1);
-        test_packet.data = encode_uart_frame(1'b0, 8'(i), get_parity(8'(i)), 1'b1);
-
-
-
+        test_packet.address = encode_uart_frame(1'($random()), address, get_parity(address), 1'($random()));
+        test_packet.data = encode_uart_frame(1'($random()), data, get_parity(data), 1'($random()));
         send_packet(test_packet);
-
-
-
     end
 
-    $stop();
 
-    // uart_frame_s frame_to_send;
-    // frame_to_send = encode_uart_frame(1'b1, 8'haa, 1'b1, 1'b1);
-    // input_stream = ({input_stream, stream_q'(frame_to_send)});
-    // frame_to_send = encode_uart_frame(1'b1, 8'h55, 1'b1, 1'b1);
-    // input_stream = ({input_stream, stream_q'(frame_to_send)});
-    // frame_to_send = encode_uart_frame(1'b1, 8'h12, 1'b1, 1'b1);
-    // input_stream = ({input_stream, stream_q'(frame_to_send)});
+    verify_packets();
 
-    // @(negedge clk);
-
-
-    // forever begin
-    //     if (input_stream.size() > 0) begin
-    //         sin = input_stream.pop_front();
-    //     end
-
-    //     wait_clk(16);
-    // end
-
+    $finish();
 end
-
 //------------------------
 // Frame receiver
 //------------------------
 
 
 initial begin
-
-    stream_q output_stream;
-    uart_frame_s frame_out;
-
     @(posedge rst_n);
-
-    @(negedge sout0);
-    @(negedge clk);
-
+    wait_clk(3);
     forever begin
-
-        output_stream.push_front(sout0);
-
-        repeat(16)@(negedge clk);
-
-        if (output_stream.size() >= 11) begin
-            frame_out = {uart_frame_s'({<<{output_stream[$-11:$]}})};
-            output_stream = output_stream[0:$-11];
-
-            frame_out.data = {<<{frame_out.data}};
-
-
-        end
-
+        extract_packet(sout0, received_packets_sout0_q);
     end
 end
 
+initial begin
+    @(posedge rst_n);
+    wait_clk(3);
+    forever begin
+        extract_packet(sout1, received_packets_sout1_q);
+    end
+end
 
 
 //------------------------
 // Tester main
 //------------------------
 
+task verify_packets();
+    // discard first empty packet
 
+    sent_packets_q.pop_front();
+    sent_packets_q.pop_front();
+
+    foreach (sent_packets_q[i]) begin
+
+        if (pck_is_correct(sent_packets_q[i]) != TRUE) begin
+            if (received_packets_sout0_q[i] != ignored_pkt) begin
+                $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p INVALID PACKET NOT IGNORED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
+                test_result = TEST_FAILED;
+            end
+            if (received_packets_sout1_q[i] != ignored_pkt) begin
+                $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p INVALID PACKET NOT IGNORED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
+                test_result = TEST_FAILED;
+            end
+        end
+        else begin
+            if (get_port(sent_packets_q[i]) == 1'b0) begin
+                if (received_packets_sout0_q[i] != sent_packets_q[i]) begin
+                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT0 NOT CORRESPONDS TO SENT PKT\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
+                    test_result = TEST_FAILED;
+                end
+                if (received_packets_sout1_q[i] != ignored_pkt) begin
+                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT1 NOT IGNORED WHILE PORT0 IS ADDRESSED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
+                    test_result = TEST_FAILED;
+                end
+            end
+            else begin
+                if (received_packets_sout1_q[i] != sent_packets_q[i]) begin
+                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT1 NOT CORRESPONDS TO SENT PKT\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
+                    test_result = TEST_FAILED; 
+                end
+                if (received_packets_sout0_q[i] != ignored_pkt) begin
+                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT0 NOT IGNORED WHILE PORT0 IS ADDRESSED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
+                    test_result = TEST_FAILED;
+                end
+            end
+        end
+    end
+endtask
 
 
 
@@ -340,10 +368,6 @@ endtask
 task wait_clk(int clk_num);
     #(20*clk_num);
 endtask 
-
-function bit get_parity(bit [7:0] data);
-    return ^data;
-endfunction 
 
 // used to modify the color of the text printed on the terminal
 function void set_print_color ( print_color_t c );
