@@ -38,6 +38,9 @@ Test plan:
 
 9. Set prog active and check state of outputs
 
+Coverege plan:
+
+
 
 
 
