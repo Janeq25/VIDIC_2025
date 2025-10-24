@@ -158,14 +158,13 @@ covergroup data_cov;
 
 
     coverpoint address {
-        bins ALL_ZEROS[]       = {8'h00};
-        bins ALL_ONES[]        = {8'hff};
+        bins ALL[]             = {[8'h00:8'hFF]};
     }
 
     coverpoint data {
-        bins ALL_ZEROS[]       = {8'h00};
-        bins ALL_ONES[]        = {8'hff};
+        bins ALL[]             = {[8'h00:8'hFF]};
     }
+
 
 
 endgroup
@@ -181,8 +180,8 @@ initial begin : coverage
     forever begin : sample_cov
         @(posedge clk);
         oc.sample();
-        // fc.sample();
-        // dc.sample();
+        fc.sample();
+        dc.sample();
 
         /* #1step delay is necessary before checking for the coverage
          * as the .sample methods run in parallel threads
@@ -360,6 +359,18 @@ initial begin : tp_gen
             prog_op : begin 
                 prog = 1'b1;
                 wait_clk(2);
+                if (~sout0) begin
+                    `ifdef DEBUG
+                        $display("sout0 shall be asserted when prog is active");
+                    `endif
+                    test_result = TEST_FAILED;
+                end
+                if (~sout1) begin
+                    `ifdef DEBUG
+                        $display("sout0 shall be asserted when prog is active");
+                    `endif
+                    test_result = TEST_FAILED;
+                end
                 prog = 1'b0;
              end
         endcase
@@ -587,6 +598,18 @@ task reset_dut();
     @(posedge clk);
     wait_clk(2);
     rst_n = 1'b0;
+    if (~sout0) begin
+        `ifdef DEBUG
+            $display("sout0 shall be asserted when reset is active");
+        `endif
+        test_result = TEST_FAILED;
+    end
+    if (~sout1) begin
+        `ifdef DEBUG
+            $display("sout0 shall be asserted when reset is active");
+        `endif
+        test_result = TEST_FAILED;
+    end
     wait_clk(2);
     rst_n = 1'b1;
 endtask
