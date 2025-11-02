@@ -45,5 +45,10 @@ package simple_uart_switch_tb_pkg;
 
     bit switch_memory [(2**8)-1:0];
 
+    function bit get_parity(bit [7:0] data);
+
+        return ^data;
+    
+    endfunction 
 
 endpackage

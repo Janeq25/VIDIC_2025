@@ -9,7 +9,7 @@ module coverage(simple_uart_switch_bfm bfm);
     covergroup frame_cov;
         option.name = "cg_frame_cov";
     
-        coverpoint bfm.frame_type {
+        coverpoint bfm.current_frame_type {
             bins ALL_FRAMES[]              = {[wrong_parity_frame1 : correct_pck]};
         }
     
@@ -20,7 +20,7 @@ module coverage(simple_uart_switch_bfm bfm);
         option.name = "cg_oper_cov";
     
     
-        coverpoint bfm.operation_type {
+        coverpoint bfm.current_op {
             bins ALL_OPS[]             = {[regular_op : reset_op]};
             bins ALL_OPS_TWICE[]       = ([regular_op : reset_op] [* 2]);
             bins REG_AFTER_PROG[]      = (prog_op => regular_op);
