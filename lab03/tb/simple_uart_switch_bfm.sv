@@ -78,4 +78,14 @@ interface simple_uart_switch_bfm;
     
     endtask
 
+
+    task reset_dut();
+        bfm.rst_n = 1'b1;
+        @(posedge bfm.clk);
+        wait_clk(2);
+        bfm.rst_n = 1'b0;
+        wait_clk(2);
+        bfm.rst_n = 1'b1;
+    endtask
+
 endinterface
