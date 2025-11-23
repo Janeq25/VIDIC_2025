@@ -193,6 +193,7 @@ package simple_uart_switch_tb_pkg;
     `include "base_tpgen.svh"
     `include "random_tpgen.svh"
     `include "edgeval_only_tpgen.svh"
+    `include "correct_start_tpgen.svh"
     `include "scoreboard.svh"
     `include "driver.svh"
     `include "command_monitor.svh"
@@ -203,5 +204,7 @@ package simple_uart_switch_tb_pkg;
 
     `include "random_test.svh"
     `include "edgeval_only_test.svh"
+    `include "correct_start_test.svh"
+
 
 endpackage

@@ -164,7 +164,7 @@ class scoreboard extends uvm_subscriber #(result_s);
         cmd.frame_type   = correct_pck;
         cmd.op_type      = reset_op;
         do
-            if (!cmd_f.try_get(cmd))
+            while (!cmd_f.try_get(cmd))
                 $fatal(1, "Missing command in self checker");
         while (!(cmd.op_type == regular_op));
 
@@ -179,9 +179,7 @@ class scoreboard extends uvm_subscriber #(result_s);
 // check phase
 //------------------------------------------------------------------------------
     function void check_phase(uvm_phase phase);
-        phase.raise_objection(this);
         verify_packets();
-        phase.drop_objection(this);
     endfunction : check_phase
 
 

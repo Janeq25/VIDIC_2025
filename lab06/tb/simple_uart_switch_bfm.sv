@@ -137,7 +137,9 @@ interface simple_uart_switch_bfm;
                 wait_clk(1);
             end
             prog_switch : begin
+                op_start = 0;
                 program_switch();
+                op_start = 0;
             end
         endcase
     
@@ -201,6 +203,13 @@ initial begin : cmd_monitor
     end
 
 end : cmd_monitor
+
+always @(negedge rst_n) begin : rst_monitor
+    command_s command;
+    command.op_type = reset_op;
+    if (command_monitor_h != null) //guard against VCS time 0 negedge
+        command_monitor_h.write_to_monitor(command);
+end : rst_monitor
 
 
 
