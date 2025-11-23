@@ -45,29 +45,7 @@ interface simple_uart_switch_bfm;
         end
     end
     
-    function packet_s encode_packet(uart_frame_s address, uart_frame_s data);
-    
-        packet_s packet;
-    
-        packet.address = address;
-        packet.data = address;
-    
-        return packet;
-    
-    endfunction
-    
-    function uart_frame_s encode_uart_frame(bit start_bit, bit [7:0] data, bit parity_bit, bit stop_bit);
-    
-        uart_frame_s frame;
-    
-        frame.start_bit = start_bit;
-        frame.data = {<<{data}};
-        frame.parity_bit = parity_bit;
-        frame.stop_bit = stop_bit;
-    
-        return frame;
-    
-    endfunction
+
     
     task send_packet(packet_s pkt);
     
@@ -115,9 +93,17 @@ interface simple_uart_switch_bfm;
     
     endtask
 
-    task send_op(op_type_t op_type, frame_types_t frame_type, logic [7:0] address, logic [7:0] data);
+
+
+
+    task send_op(op_type_t iop_type, frame_types_t iframe_type, logic [7:0] iaddress, logic [7:0] idata);
 
         packet_s test_packet;
+
+        address = iaddress;
+        data = idata;
+        op_type = iop_type;
+        frame_type = iframe_type;
     
         pck_start = 0;
         sin = 1'b1;
@@ -125,68 +111,41 @@ interface simple_uart_switch_bfm;
         test_start = 1;
         op_start = 1;
 
-        for (int i = 0; i <= 10000; i++) begin
     
-            case (frame_type)
-                correct_pck : begin 
-                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-                end
-                missing_start_bit_frame0 : begin 
-                    test_packet.address = encode_uart_frame(1'b1, address, get_parity(address), 1'b1);
-                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-                end
-                missing_start_bit_frame1 : begin 
-                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-                    test_packet.data = encode_uart_frame(1'b1, data, get_parity(data), 1'b1);
-                end
-                missing_stop_bit_frame0 : begin 
-                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b0);
-                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-                end
-                missing_stop_bit_frame1 : begin 
-                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b0);
-                end
-                wrong_parity_frame0 : begin 
-                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address) + 1'b1, 1'b1);
-                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-                end
-                wrong_parity_frame1 : begin 
-                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data) + 1'b1, 1'b1);
-                end
-            endcase
+        test_packet = construct_packet(frame_type, address, data);
+
+
+
+        case (op_type)
+            regular_op : begin
+                pck_start = 1'b1;
+                send_packet(test_packet);
+                pck_start = 1'b0;
+                op_start = 0;
+                wait_clk(1);
+            end
+            reset_op : begin 
+                reset_dut();
+                op_start = 0;
+                wait_clk(1);
+            end
+            prog_op : begin 
+                prog = 1'b1;
+                wait_clk(2);
+                op_start = 0;
+                prog = 1'b0;
+                wait_clk(1);
+            end
+            prog_switch : begin
+                program_switch();
+            end
+        endcase
     
     
-    
-            case (op_type)
-                regular_op : begin
-                    pck_start = 1'b1;
-                    send_packet(test_packet);
-                    pck_start = 1'b0;
-                    wait_clk(1);
-                end
-                reset_op : begin 
-                    reset_dut();
-                end
-                prog_op : begin 
-                    prog = 1'b1;
-                    wait_clk(2);
-                    prog = 1'b0;
-                end
-                prog_switch : begin
-                    program_switch();
-                end
-            endcase
-    
-        end
-    
-        op_start = 0;
 
     endtask
 
-    task extract_packet(input logic serial_in, output packet_s packet);
+    task automatic extract_packet(ref logic serial_in, output packet_s packet);
 
         stream_q bits_stream;
         packet_s received_packet;
@@ -230,7 +189,7 @@ initial begin : result_monitor_thread
 end : result_monitor_thread
 
 
-initial begin : command_monitor
+initial begin : cmd_monitor
     command_s command;
     forever begin
         @(posedge op_start);
@@ -241,7 +200,7 @@ initial begin : command_monitor
         command_monitor_h.write_to_monitor(command);
     end
 
-end : command_monitor
+end : cmd_monitor
 
 
 

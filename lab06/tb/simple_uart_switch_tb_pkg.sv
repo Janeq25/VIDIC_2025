@@ -85,6 +85,69 @@ package simple_uart_switch_tb_pkg;
     
     endfunction 
 
+    function packet_s encode_packet(uart_frame_s address, uart_frame_s data);
+    
+        packet_s packet;
+    
+        packet.address = address;
+        packet.data = address;
+    
+        return packet;
+    
+    endfunction
+    
+    function uart_frame_s encode_uart_frame(bit start_bit, bit [7:0] data, bit parity_bit, bit stop_bit);
+    
+        uart_frame_s frame;
+    
+        frame.start_bit = start_bit;
+        frame.data = {<<{data}};
+        frame.parity_bit = parity_bit;
+        frame.stop_bit = stop_bit;
+    
+        return frame;
+    
+    endfunction
+
+
+    function packet_s construct_packet(frame_types_t frame_type, logic [7:0] address, logic [7:0] data);
+        packet_s packet;
+        
+        case (frame_type)
+            correct_pck : begin 
+                packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+                packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+            end
+            missing_start_bit_frame0 : begin 
+                packet.address = encode_uart_frame(1'b1, address, get_parity(address), 1'b1);
+                packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+            end
+            missing_start_bit_frame1 : begin 
+                packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+                packet.data = encode_uart_frame(1'b1, data, get_parity(data), 1'b1);
+            end
+            missing_stop_bit_frame0 : begin 
+                packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b0);
+                packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+            end
+            missing_stop_bit_frame1 : begin 
+                packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+                packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b0);
+            end
+            wrong_parity_frame0 : begin 
+                packet.address = encode_uart_frame(1'b0, address, get_parity(address) + 1'b1, 1'b1);
+                packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+            end
+            wrong_parity_frame1 : begin 
+                packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+                packet.data = encode_uart_frame(1'b0, data, get_parity(data) + 1'b1, 1'b1);
+            end
+        endcase
+        
+        return packet;
+
+    endfunction
+
 
 
 // used to modify the color of the text printed on the terminal

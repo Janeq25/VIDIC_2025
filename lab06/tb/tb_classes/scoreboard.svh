@@ -1,7 +1,7 @@
 
 
 
-class scoreboard extends uvm_subscriber #(shortint);
+class scoreboard extends uvm_subscriber #(result_s);
     `uvm_component_utils(scoreboard)
 
 
@@ -102,13 +102,13 @@ class scoreboard extends uvm_subscriber #(shortint);
                     `ifdef DEBUG
                     $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p INVALID PACKET NOT IGNORED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
                     `endif
-                    test_result = TEST_FAILED;
+                    tr = TEST_FAILED;
                 end
                 if (received_packets_sout1_q[i] != ignored_pkt) begin
                     `ifdef DEBUG
                     $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p INVALID PACKET NOT IGNORED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
                     `endif
-                    test_result = TEST_FAILED;
+                    tr = TEST_FAILED;
                 end
             end
             else begin
@@ -117,13 +117,13 @@ class scoreboard extends uvm_subscriber #(shortint);
                         `ifdef DEBUG
                         $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT0 NOT CORRESPONDS TO SENT PKT\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
                         `endif
-                        test_result = TEST_FAILED;
+                        tr = TEST_FAILED;
                     end
                     if (received_packets_sout1_q[i] != ignored_pkt) begin
                         `ifdef DEBUG
                         $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT1 NOT IGNORED WHILE PORT0 IS ADDRESSED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
                         `endif
-                        test_result = TEST_FAILED;
+                        tr = TEST_FAILED;
                     end
                 end
                 else begin
@@ -131,13 +131,13 @@ class scoreboard extends uvm_subscriber #(shortint);
                         `ifdef DEBUG
                         $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT1 NOT CORRESPONDS TO SENT PKT\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
                         `endif
-                        test_result = TEST_FAILED; 
+                        tr = TEST_FAILED; 
                     end
                     if (received_packets_sout0_q[i] != ignored_pkt) begin
                         `ifdef DEBUG
                         $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT0 NOT IGNORED WHILE PORT0 IS ADDRESSED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
                         `endif
-                        test_result = TEST_FAILED;
+                        tr = TEST_FAILED;
                     end
                 end
             end
@@ -146,7 +146,7 @@ class scoreboard extends uvm_subscriber #(shortint);
 
 
     task print_result();
-        print_test_result(test_result);
+        print_test_result(tr);
     endtask
     
 
@@ -156,16 +156,32 @@ class scoreboard extends uvm_subscriber #(shortint);
 //------------------------------------------------------------------------------
 // run phase
 //------------------------------------------------------------------------------
-    function void write(result_s r);
-        received_packets_sout0_q.push_front(r.packet_sout0);
-        received_packets_sout1_q.push_front(r.packet_sout1);
-    endfunction
+    function void write(result_s t);
+        command_s cmd;
+        packet_s packet;
+        cmd.address      = 0;
+        cmd.data         = 0;
+        cmd.frame_type   = correct_pck;
+        cmd.op_type      = reset_op;
+        do
+            if (!cmd_f.try_get(cmd))
+                $fatal(1, "Missing command in self checker");
+        while (!(cmd.op_type == regular_op));
+
+        packet = construct_packet(cmd.frame_type, cmd.address, cmd.data);
+
+        sent_packets_q.push_back(packet);
+        received_packets_sout0_q.push_back(t.packet_sout0);
+        received_packets_sout1_q.push_back(t.packet_sout1);
+    endfunction : write
 
 //------------------------------------------------------------------------------
 // check phase
 //------------------------------------------------------------------------------
     function void check_phase(uvm_phase phase);
+        phase.raise_objection(this);
         verify_packets();
+        phase.drop_objection(this);
     endfunction : check_phase
 
 
@@ -175,7 +191,7 @@ class scoreboard extends uvm_subscriber #(shortint);
 //------------------------------------------------------------------------------
     function void report_phase(uvm_phase phase);
         super.report_phase(phase);
-        print_test_result(test_result);
+        print_test_result(tr);
     endfunction : report_phase
 
 endclass

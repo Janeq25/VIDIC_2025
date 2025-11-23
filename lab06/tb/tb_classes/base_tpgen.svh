@@ -4,7 +4,6 @@
 
 virtual class base_tpgen extends uvm_component;
 
-    virtual simple_uart_switch_bfm bfm;
 
     protected bit [7:0] address;
     protected bit [7:0] data;
