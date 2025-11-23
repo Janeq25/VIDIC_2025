@@ -1,17 +1,19 @@
 
 
 
-class coverage extends uvm_component;
+class coverage extends uvm_subscriber #(command_s);
     `uvm_component_utils(coverage)
 
-    protected virtual simple_uart_switch_bfm bfm;
-
+        protected frame_types_t frame_type;
+        protected op_type_t op_type;
+        protected logic [7:0] address;
+        protected logic [7:0] data;
 
     // Covergroup checking the generated frames and their sequences
     covergroup frame_cov;
         option.name = "cg_frame_cov";
     
-        coverpoint bfm.current_frame_type {
+        coverpoint frame_type {
             bins ALL_FRAMES[]              = {[wrong_parity_frame1 : correct_pck]};
         }
     
@@ -22,7 +24,7 @@ class coverage extends uvm_component;
         option.name = "cg_oper_cov";
     
     
-        coverpoint bfm.current_op {
+        coverpoint op_type {
             bins ALL_OPS[]             = {[regular_op : reset_op]};
             bins ALL_OPS_TWICE[]       = ([regular_op : reset_op] [* 2]);
             bins REG_AFTER_PROG[]      = (prog_op => regular_op);
@@ -36,11 +38,11 @@ class coverage extends uvm_component;
         option.name = "cg_data_cov";
     
     
-        coverpoint bfm.current_packet.address.data {
+        coverpoint address {
             bins ALL[]             = {[8'h00:8'hFF]};
         }
     
-        coverpoint bfm.current_packet.data.data {
+        coverpoint data {
             bins ALL[]             = {[8'h00:8'hFF]};
         }
     
@@ -56,30 +58,18 @@ class coverage extends uvm_component;
         data_cov = new();
     endfunction
 
-    
 
-    function void build_phase(uvm_phase phase);
-        if(!uvm_config_db #(virtual simple_uart_switch_bfm)::get(null, "*","bfm", bfm))
-            $fatal(1,"Failed to get BFM");
-    endfunction : build_phase
-
-    
-    task run_phase(uvm_phase phase);
-        forever begin : sample_cov
-            @(posedge bfm.clk);
-            op_cov.sample();
-            frame_cov.sample();
-            data_cov.sample();
-    
-            /* #1step delay is necessary before checking for the coverage
-             * as the .sample methods run in parallel threads
-              */
-            #1step;
-            if($get_coverage() == 100) break; //disable, if needed
-    
-            // you can print the coverage after each sample
-    //            $strobe("%0t coverage: %.4g\%",$time, $get_coverage());
-        end
-    endtask
+//------------------------------------------------------------------------------
+// subscriber write function
+//------------------------------------------------------------------------------
+    function void write(command_s t);
+        frame_type = t.frame_type;
+        op_type = t.op_type;
+        address = t.address;
+        data = t.data;
+        op_cov.sample();
+        frame_cov.sample();
+        data_cov.sample();
+    endfunction : write
     
 endclass

@@ -9,7 +9,10 @@ virtual class base_tpgen extends uvm_component;
     protected bit [7:0] address;
     protected bit [7:0] data;
 
-
+//------------------------------------------------------------------------------
+// port for sending the transactions
+//------------------------------------------------------------------------------
+    uvm_put_port #(command_s) command_port;
 
 
 
@@ -22,8 +25,7 @@ virtual class base_tpgen extends uvm_component;
     pure virtual protected function byte get_address();
 
     function void build_phase(uvm_phase phase);
-        if(!uvm_config_db #(virtual simple_uart_switch_bfm)::get(null, "*","bfm", bfm))
-            $fatal(1,"Failed to get BFM");
+        command_port = new("command_port", this);
     endfunction : build_phase
 
     protected function op_type_t get_op_type();
@@ -56,115 +58,23 @@ virtual class base_tpgen extends uvm_component;
     
     endfunction
     
-
-
-    protected task program_switch();
-
-        packet_s config_pkt;
-    
-        bfm.prog = 1'b1;
-    
-        for (int i = 0; i < (2**8); i++) begin
-            switch_memory[i] = 1'($random());
-        end
-    
-        for (int i = 0; i < (2**8); i++) begin
-            config_pkt.address = bfm.encode_uart_frame(1'b0, 8'(i), get_parity(8'(i)), 1'b1);
-            config_pkt.data = bfm.encode_uart_frame(1'b0, 8'(switch_memory[i]), get_parity(8'(switch_memory[i])), 1'b1);
-            bfm.send_packet(config_pkt);
-        end
-    
-        bfm.prog = 1'b0;
-    
-    endtask
-    
-
     task run_phase(uvm_phase phase);
 
-        packet_s test_packet;
-    
-        bfm.pck_start = 0;
-        bfm.test_start = 0;
-        bfm.sin = 1'b1;
-        bfm.prog = 1'b0;
+        command_s command;
 
         phase.raise_objection(this);
-
-    
-        bfm.reset_dut();
-    
-    
-        program_switch();
-
-        bfm.test_start = 1;
-
-
-    
-        for (int i = 0; i <= 10000; i++) begin
-            address = get_address();
-            data = get_data();
-    
-            bfm.current_op = get_op_type();
-            bfm.current_frame_type = get_frame();
-    
-    
-            case (bfm.current_frame_type)
-                correct_pck : begin 
-                    test_packet.address = bfm.encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-                    test_packet.data = bfm.encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-                end
-                missing_start_bit_frame0 : begin 
-                    test_packet.address = bfm.encode_uart_frame(1'b1, address, get_parity(address), 1'b1);
-                    test_packet.data = bfm.encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-                end
-                missing_start_bit_frame1 : begin 
-                    test_packet.address = bfm.encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-                    test_packet.data = bfm.encode_uart_frame(1'b1, data, get_parity(data), 1'b1);
-                end
-                missing_stop_bit_frame0 : begin 
-                    test_packet.address = bfm.encode_uart_frame(1'b0, address, get_parity(address), 1'b0);
-                    test_packet.data = bfm.encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-                end
-                missing_stop_bit_frame1 : begin 
-                    test_packet.address = bfm.encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-                    test_packet.data = bfm.encode_uart_frame(1'b0, data, get_parity(data), 1'b0);
-                end
-                wrong_parity_frame0 : begin 
-                    test_packet.address = bfm.encode_uart_frame(1'b0, address, get_parity(address) + 1'b1, 1'b1);
-                    test_packet.data = bfm.encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
-                end
-                wrong_parity_frame1 : begin 
-                    test_packet.address = bfm.encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
-                    test_packet.data = bfm.encode_uart_frame(1'b0, data, get_parity(data) + 1'b1, 1'b1);
-                end
-            endcase
-    
-    
-    
-            case (bfm.current_op)
-                regular_op : begin
-                    bfm.pck_start = 1'b1;
-                    bfm.send_packet(test_packet);
-                    bfm.pck_start = 1'b0;
-                    wait_clk(1);
-                end
-                reset_op : begin 
-                    bfm.reset_dut();
-                end
-                prog_op : begin 
-                    bfm.prog = 1'b1;
-                    wait_clk(2);
-                    bfm.prog = 1'b0;
-                 end
-            endcase
-    
-        end
-    
-    
-        bfm.test_start = 0;
-
+        command.op_type = reset_op;
+        command_port.put(command);
+        command.op_type = prog_switch;
+        command_port.put(command);
+        repeat (10000) begin : random_loop
+            command.op_type = get_op_type();
+            command.frame_type = get_frame();
+            command.data  = get_data();
+            command.address  = get_address();
+            command_port.put(command);
+        end : random_loop
+        #500;
         phase.drop_objection(this);
-
-    
-    endtask
+    endtask : run_phase
 endclass

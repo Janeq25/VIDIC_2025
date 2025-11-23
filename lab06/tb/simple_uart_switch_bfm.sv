@@ -13,9 +13,16 @@ interface simple_uart_switch_bfm;
 
     logic pck_start;
     logic test_start;
-    packet_s current_packet;
-    frame_types_t current_frame_type;
-    op_type_t current_op;
+    logic op_start;
+
+    logic [7:0] address;
+    logic [7:0] data;
+    op_type_t op_type;
+    frame_types_t frame_type;
+
+
+    command_monitor command_monitor_h;
+    result_monitor result_monitor_h;
 
 
     initial begin : clk_gen_blk
@@ -66,7 +73,6 @@ interface simple_uart_switch_bfm;
     
         stream_q packet_stream;
     
-        current_packet = pkt;
         packet_stream = ({packet_stream, stream_q'(pkt)});
     
         @(negedge clk)
@@ -80,12 +86,163 @@ interface simple_uart_switch_bfm;
 
 
     task reset_dut();
-        bfm.rst_n = 1'b1;
-        @(posedge bfm.clk);
+        rst_n = 1'b1;
+        @(posedge clk);
         wait_clk(2);
-        bfm.rst_n = 1'b0;
+        rst_n = 1'b0;
         wait_clk(2);
-        bfm.rst_n = 1'b1;
+        rst_n = 1'b1;
     endtask
+
+
+    task program_switch();
+
+        packet_s config_pkt;
+    
+        prog = 1'b1;
+    
+        for (int i = 0; i < (2**8); i++) begin
+            switch_memory[i] = 1'($random());
+        end
+    
+        for (int i = 0; i < (2**8); i++) begin
+            config_pkt.address = encode_uart_frame(1'b0, 8'(i), get_parity(8'(i)), 1'b1);
+            config_pkt.data = encode_uart_frame(1'b0, 8'(switch_memory[i]), get_parity(8'(switch_memory[i])), 1'b1);
+            send_packet(config_pkt);
+        end
+    
+        prog = 1'b0;
+    
+    endtask
+
+    task send_op(op_type_t op_type, frame_types_t frame_type, logic [7:0] address, logic [7:0] data);
+
+        packet_s test_packet;
+    
+        pck_start = 0;
+        sin = 1'b1;
+        prog = 1'b0;
+        test_start = 1;
+        op_start = 1;
+
+        for (int i = 0; i <= 10000; i++) begin
+    
+            case (frame_type)
+                correct_pck : begin 
+                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+                end
+                missing_start_bit_frame0 : begin 
+                    test_packet.address = encode_uart_frame(1'b1, address, get_parity(address), 1'b1);
+                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+                end
+                missing_start_bit_frame1 : begin 
+                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+                    test_packet.data = encode_uart_frame(1'b1, data, get_parity(data), 1'b1);
+                end
+                missing_stop_bit_frame0 : begin 
+                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b0);
+                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+                end
+                missing_stop_bit_frame1 : begin 
+                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b0);
+                end
+                wrong_parity_frame0 : begin 
+                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address) + 1'b1, 1'b1);
+                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data), 1'b1);
+                end
+                wrong_parity_frame1 : begin 
+                    test_packet.address = encode_uart_frame(1'b0, address, get_parity(address), 1'b1);
+                    test_packet.data = encode_uart_frame(1'b0, data, get_parity(data) + 1'b1, 1'b1);
+                end
+            endcase
+    
+    
+    
+            case (op_type)
+                regular_op : begin
+                    pck_start = 1'b1;
+                    send_packet(test_packet);
+                    pck_start = 1'b0;
+                    wait_clk(1);
+                end
+                reset_op : begin 
+                    reset_dut();
+                end
+                prog_op : begin 
+                    prog = 1'b1;
+                    wait_clk(2);
+                    prog = 1'b0;
+                end
+                prog_switch : begin
+                    program_switch();
+                end
+            endcase
+    
+        end
+    
+        op_start = 0;
+
+    endtask
+
+    task extract_packet(input logic serial_in, output packet_s packet);
+
+        stream_q bits_stream;
+        packet_s received_packet;
+        uart_frame_s received_address_frame;
+        uart_frame_s received_data_frame;
+    
+        for (int i = 0; i < 22; i++) begin
+            bits_stream.push_front(serial_in);
+            wait_clk(16);
+        end
+    
+        received_address_frame = {uart_frame_s'({<<{bits_stream[$-11:$]}})};
+        received_data_frame = {uart_frame_s'({<<{bits_stream[$-22:$-11]}})};
+        received_packet.address = received_address_frame;
+        received_packet.address.data = {>>{received_packet.address.data}};
+        received_packet.data = received_data_frame;
+        received_packet.data.data = {>>{received_packet.data.data}};
+        packet = received_packet;
+        
+    endtask
+
+
+initial begin : result_monitor_thread
+    result_s result;
+    @(posedge test_start);
+    forever begin
+        fork
+            begin
+                @(posedge pck_start) begin
+                    extract_packet(sout0, result.packet_sout0);
+                end
+            end
+            begin
+                @(posedge pck_start) begin
+                    extract_packet(sout1, result.packet_sout1);
+                end
+            end
+        join
+        result_monitor_h.write_to_monitor(result);
+    end
+end : result_monitor_thread
+
+
+initial begin : command_monitor
+    command_s command;
+    forever begin
+        @(posedge op_start);
+        command.address = address;
+        command.data = data;
+        command.op_type = op_type;
+        command.frame_type = frame_type;
+        command_monitor_h.write_to_monitor(command);
+    end
+
+end : command_monitor
+
+
 
 endinterface

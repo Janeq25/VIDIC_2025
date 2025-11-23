@@ -1,10 +1,8 @@
 
 
 
-class scoreboard extends uvm_component;
+class scoreboard extends uvm_subscriber #(shortint);
     `uvm_component_utils(scoreboard)
-
-    virtual simple_uart_switch_bfm bfm;
 
 
     protected packet_q sent_packets_q;
@@ -13,34 +11,60 @@ class scoreboard extends uvm_component;
     protected const packet_s ignored_pkt = packet_s'('1);
 
 
+//------------------------------------------------------------------------------
+// local typedefs
+//------------------------------------------------------------------------------
+    typedef enum bit {
+        TEST_PASSED,
+        TEST_FAILED
+    } test_result;
+
+//------------------------------------------------------------------------------
+// local variables
+//------------------------------------------------------------------------------
+//    virtual tinyalu_bfm bfm;
+    uvm_tlm_analysis_fifo #(command_s) cmd_f;
+
+    local test_result tr = TEST_PASSED; // the result of the current test
+
+//------------------------------------------------------------------------------
+// constructor
+//------------------------------------------------------------------------------
     function new (string name, uvm_component parent);
         super.new(name, parent);
     endfunction : new
 
-
-
-
-    protected task automatic extract_packet(ref logic serial_in, ref packet_q packet_queue);
-
-        stream_q bits_stream;
-        packet_s received_packet;
-        uart_frame_s received_address_frame;
-        uart_frame_s received_data_frame;
-    
-        for (int i = 0; i < 22; i++) begin
-            bits_stream.push_front(serial_in);
-            wait_clk(16);
+//------------------------------------------------------------------------------
+// print the PASSED/FAILED in color
+//------------------------------------------------------------------------------
+    local function void print_test_result (test_result r);
+        if(tr == TEST_PASSED) begin
+            set_print_color(COLOR_BOLD_BLACK_ON_GREEN);
+            $write ("-----------------------------------\n");
+            $write ("----------- Test PASSED -----------\n");
+            $write ("-----------------------------------");
+            set_print_color(COLOR_DEFAULT);
+            $write ("\n");
         end
-    
-        received_address_frame = {uart_frame_s'({<<{bits_stream[$-11:$]}})};
-        received_data_frame = {uart_frame_s'({<<{bits_stream[$-22:$-11]}})};
-        received_packet.address = received_address_frame;
-        received_packet.address.data = {>>{received_packet.address.data}};
-        received_packet.data = received_data_frame;
-        received_packet.data.data = {>>{received_packet.data.data}};
-        packet_queue.push_front(received_packet);
-        
-    endtask
+        else begin
+            set_print_color(COLOR_BOLD_BLACK_ON_RED);
+            $write ("-----------------------------------\n");
+            $write ("----------- Test FAILED -----------\n");
+            $write ("-----------------------------------");
+            set_print_color(COLOR_DEFAULT);
+            $write ("\n");
+        end
+    endfunction
+
+//------------------------------------------------------------------------------
+// build phase
+//------------------------------------------------------------------------------
+    function void build_phase(uvm_phase phase);
+        cmd_f = new ("cmd_f", this);
+    endfunction : build_phase
+
+
+
 
     protected function bit pck_is_correct(packet_s pck);
 
@@ -126,61 +150,16 @@ class scoreboard extends uvm_component;
     endtask
     
 
-    task store_test_packets();
-        begin
-            @(posedge bfm.test_start);
-            forever begin
-                @(posedge bfm.pck_start) begin
-                    sent_packets_q.push_front(bfm.current_packet);
-                end
-            end
-        end
-
-    endtask
 
 
-    task store_packets_from_dut();
-        fork
-            begin
-                @(posedge bfm.test_start);
-                forever begin
-                    @(posedge bfm.pck_start) begin
-                        extract_packet(bfm.sout0, received_packets_sout0_q);
-                    end
-                end
-            end
-            
-            begin
-                @(posedge bfm.test_start);
-                forever begin
-                    @(posedge bfm.pck_start) begin
-                        extract_packet(bfm.sout1, received_packets_sout1_q);
-                    end
-                end
-            end
-        join
-
-    endtask
-
-
-
-//------------------------------------------------------------------------------
-// build phase
-//------------------------------------------------------------------------------
-    function void build_phase(uvm_phase phase);
-        if(!uvm_config_db #(virtual simple_uart_switch_bfm)::get(null, "*","bfm", bfm))
-            $fatal(1,"Failed to get BFM");
-    endfunction : build_phase
 
 //------------------------------------------------------------------------------
 // run phase
 //------------------------------------------------------------------------------
-    task run_phase(uvm_phase phase);
-        fork
-            store_test_packets();
-            store_packets_from_dut();
-        join_none
-    endtask : run_phase
+    function void write(result_s r);
+        received_packets_sout0_q.push_front(r.packet_sout0);
+        received_packets_sout1_q.push_front(r.packet_sout1);
+    endfunction
 
 //------------------------------------------------------------------------------
 // check phase

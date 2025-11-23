@@ -21,10 +21,18 @@ package simple_uart_switch_tb_pkg;
     typedef enum bit [1:0] {
         regular_op          = 2'b00,
         prog_op             = 2'b01,
-        reset_op            = 2'b10
+        reset_op            = 2'b10,
+        prog_switch         = 2'b11
     } op_type_t;
-    
-    
+
+
+    typedef struct packed {
+        frame_types_t frame_type;
+        op_type_t op_type;
+        logic [7:0] address;
+        logic [7:0] data;
+    } command_s;
+
     
     typedef bit stream_q [$];
     
@@ -39,6 +47,11 @@ package simple_uart_switch_tb_pkg;
         uart_frame_s address;
         uart_frame_s data;
     } packet_s;
+
+    typedef struct packed {
+        packet_s packet_sout0;
+        packet_s packet_sout1;
+    } result_s;
     
     typedef enum {
         COLOR_BOLD_BLACK_ON_GREEN,
@@ -118,7 +131,12 @@ package simple_uart_switch_tb_pkg;
     `include "random_tpgen.svh"
     `include "edgeval_only_tpgen.svh"
     `include "scoreboard.svh"
+    `include "driver.svh"
+    `include "command_monitor.svh"
+    `include "result_monitor.svh"
     `include "env.svh"
+
+
 
     `include "random_test.svh"
     `include "edgeval_only_test.svh"
