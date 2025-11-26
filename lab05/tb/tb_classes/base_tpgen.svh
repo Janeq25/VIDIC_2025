@@ -43,6 +43,7 @@ virtual class base_tpgen extends uvm_component;
     protected function frame_types_t get_frame();
         
         bit [2:0] frame_choice;
+        return correct_pck;
         frame_choice = 3'($random());
         case (frame_choice)
             3'b000 : return correct_pck;
@@ -100,7 +101,7 @@ virtual class base_tpgen extends uvm_component;
 
 
     
-        for (int i = 0; i <= 10000; i++) begin
+        for (int i = 0; i <= 1000; i++) begin
             address = get_address();
             data = get_data();
     

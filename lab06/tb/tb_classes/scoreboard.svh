@@ -90,10 +90,7 @@ class scoreboard extends uvm_subscriber #(result_s);
     endfunction 
 
     protected function verify_packets();
-        // discard first empty packet
     
-        sent_packets_q.pop_front();
-        sent_packets_q.pop_front();
     
         foreach (sent_packets_q[i]) begin
     

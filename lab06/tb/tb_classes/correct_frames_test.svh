@@ -13,8 +13,8 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-class correct_start_test extends uvm_test;
-    `uvm_component_utils(correct_start_test)
+class correct_frames_test extends uvm_test;
+    `uvm_component_utils(correct_frames_test)
 
     env env_h;
 

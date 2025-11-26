@@ -64,6 +64,7 @@ interface simple_uart_switch_bfm;
 
 
     task reset_dut();
+        op_start = 0;
         rst_n = 1'b1;
         @(posedge clk);
         wait_clk(2);
@@ -118,28 +119,32 @@ interface simple_uart_switch_bfm;
 
         case (op_type)
             regular_op : begin
+                op_start = 1;
                 pck_start = 1'b1;
-                send_packet(test_packet);
+                wait_clk(1);
                 pck_start = 1'b0;
                 op_start = 0;
-                wait_clk(1);
+                send_packet(test_packet);
             end
             reset_op : begin 
                 reset_dut();
                 op_start = 0;
                 wait_clk(1);
             end
-            prog_op : begin 
+            prog_op : begin
+                op_start = 1;
+                wait_clk(1);
+                op_start = 0;
                 prog = 1'b1;
                 wait_clk(2);
-                op_start = 0;
                 prog = 1'b0;
                 wait_clk(1);
             end
             prog_switch : begin
+                op_start = 1;
+                wait_clk(1);
                 op_start = 0;
                 program_switch();
-                op_start = 0;
             end
         endcase
     
@@ -172,20 +177,25 @@ interface simple_uart_switch_bfm;
 
 initial begin : result_monitor_thread
     result_s result;
+    packet_s pck_sout0;
+    packet_s pck_sout1;
     @(posedge test_start);
+    @(negedge pck_start);
     forever begin
         fork
             begin
-                @(posedge pck_start) begin
-                    extract_packet(sout0, result.packet_sout0);
+                @(negedge pck_start) begin
+                    extract_packet(sout0, pck_sout0);
                 end
             end
             begin
-                @(posedge pck_start) begin
-                    extract_packet(sout1, result.packet_sout1);
+                @(negedge pck_start) begin
+                    extract_packet(sout1, pck_sout1);
                 end
             end
         join
+        result.packet_sout0 = pck_sout0;
+        result.packet_sout1 = pck_sout1;
         result_monitor_h.write_to_monitor(result);
     end
 end : result_monitor_thread
@@ -194,22 +204,18 @@ end : result_monitor_thread
 initial begin : cmd_monitor
     command_s command;
     forever begin
-        @(posedge op_start);
-        command.address = address;
-        command.data = data;
-        command.op_type = op_type;
-        command.frame_type = frame_type;
-        command_monitor_h.write_to_monitor(command);
+        @(posedge clk)begin
+            if (op_start) begin
+                command.address = address;
+                command.data = data;
+                command.op_type = op_type;
+                command.frame_type = frame_type;
+                command_monitor_h.write_to_monitor(command);
+            end
+        end
     end
 
 end : cmd_monitor
-
-always @(negedge rst_n) begin : rst_monitor
-    command_s command;
-    command.op_type = reset_op;
-    if (command_monitor_h != null) //guard against VCS time 0 negedge
-        command_monitor_h.write_to_monitor(command);
-end : rst_monitor
 
 
 

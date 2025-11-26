@@ -1,11 +1,10 @@
 
-class correct_start_tpgen extends base_tpgen;
-    `uvm_component_utils (correct_start_tpgen)
+class correct_frames_tpgen extends base_tpgen;
+    `uvm_component_utils (correct_frames_tpgen)
 
     function new (string name, uvm_component parent);
         super.new(name, parent);
     endfunction : new
-
 
 
     protected function byte get_data();
@@ -26,6 +25,8 @@ class correct_start_tpgen extends base_tpgen;
     protected function byte get_address();
     
         bit [1:0] zero_ones;
+
+        return '0;
     
         zero_ones = 2'($random);
     
@@ -38,20 +39,15 @@ class correct_start_tpgen extends base_tpgen;
     endfunction : get_address
 
 
+    protected function op_type_t get_op_type();
+        
+        return regular_op;
 
+    endfunction 
+    
     protected function frame_types_t get_frame();
         
-        bit [2:0] frame_choice;
-        frame_choice = 3'($random());
-        case (frame_choice)
-            3'b000 : return correct_pck;
-            3'b001 : return missing_stop_bit_frame0;
-            3'b010 : return missing_stop_bit_frame1;
-            3'b011 : return missing_stop_bit_frame0;
-            3'b100 : return missing_stop_bit_frame1;
-            3'b101 : return wrong_parity_frame0;
-            3'b110 : return wrong_parity_frame1;    
-        endcase
+        return correct_pck;
     
     endfunction
 
