@@ -1,13 +1,10 @@
 
 
 
-class scoreboard extends uvm_subscriber #(result_s);
+class scoreboard extends uvm_subscriber #(result_transaction);
     `uvm_component_utils(scoreboard)
 
 
-    protected packet_q sent_packets_q;
-    protected packet_q received_packets_sout0_q;
-    protected packet_q received_packets_sout1_q;
     protected const packet_s ignored_pkt = packet_s'('1);
 
 
@@ -23,7 +20,7 @@ class scoreboard extends uvm_subscriber #(result_s);
 // local variables
 //------------------------------------------------------------------------------
 //    virtual tinyalu_bfm bfm;
-    uvm_tlm_analysis_fifo #(command_s) cmd_f;
+    uvm_tlm_analysis_fifo #(command_transaction) cmd_f;
 
     local test_result tr = TEST_PASSED; // the result of the current test
 
@@ -89,53 +86,50 @@ class scoreboard extends uvm_subscriber #(result_s);
     
     endfunction 
 
-    protected function verify_packets();
+    protected function verify_packet(packet_s sent_pkt, packet_s sout0, packet_s sout1);
     
     
-        foreach (sent_packets_q[i]) begin
-    
-            if (pck_is_correct(sent_packets_q[i]) != TRUE) begin
-                if (received_packets_sout0_q[i] != ignored_pkt) begin
+        if (pck_is_correct(sent_pkt) != TRUE) begin
+            if (sout0 != ignored_pkt) begin
+                `ifdef DEBUG
+                $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p INVALID PACKET NOT IGNORED\n\n", sent_pkt, sout0, sout1);
+                `endif
+                tr = TEST_FAILED;
+            end
+            if (sout1 != ignored_pkt) begin
+                `ifdef DEBUG
+                $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p INVALID PACKET NOT IGNORED\n\n", sent_pkt, sout0, sout1);
+                `endif
+                tr = TEST_FAILED;
+            end
+        end
+        else begin
+            if (get_port(sent_pkt) == 1'b0) begin
+                if (sout0 != sent_pkt) begin
                     `ifdef DEBUG
-                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p INVALID PACKET NOT IGNORED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
+                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT0 NOT CORRESPONDS TO SENT PKT\n\n", sent_pkt, sout0, sout1);
                     `endif
                     tr = TEST_FAILED;
                 end
-                if (received_packets_sout1_q[i] != ignored_pkt) begin
+                if (sout1 != ignored_pkt) begin
                     `ifdef DEBUG
-                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p INVALID PACKET NOT IGNORED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
+                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT1 NOT IGNORED WHILE PORT0 IS ADDRESSED\n\n", sent_pkt, sout0, sout1);
                     `endif
                     tr = TEST_FAILED;
                 end
             end
             else begin
-                if (get_port(sent_packets_q[i]) == 1'b0) begin
-                    if (received_packets_sout0_q[i] != sent_packets_q[i]) begin
-                        `ifdef DEBUG
-                        $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT0 NOT CORRESPONDS TO SENT PKT\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
-                        `endif
-                        tr = TEST_FAILED;
-                    end
-                    if (received_packets_sout1_q[i] != ignored_pkt) begin
-                        `ifdef DEBUG
-                        $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT1 NOT IGNORED WHILE PORT0 IS ADDRESSED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
-                        `endif
-                        tr = TEST_FAILED;
-                    end
+                if (sout1 != sent_pkt) begin
+                    `ifdef DEBUG
+                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT1 NOT CORRESPONDS TO SENT PKT\n\n", sent_pkt, sout0, sout1);
+                    `endif
+                    tr = TEST_FAILED; 
                 end
-                else begin
-                    if (received_packets_sout1_q[i] != sent_packets_q[i]) begin
-                        `ifdef DEBUG
-                        $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT1 NOT CORRESPONDS TO SENT PKT\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
-                        `endif
-                        tr = TEST_FAILED; 
-                    end
-                    if (received_packets_sout0_q[i] != ignored_pkt) begin
-                        `ifdef DEBUG
-                        $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT0 NOT IGNORED WHILE PORT0 IS ADDRESSED\n\n", sent_packets_q[i], received_packets_sout0_q[i], received_packets_sout1_q[i]);
-                        `endif
-                        tr = TEST_FAILED;
-                    end
+                if (sout0 != ignored_pkt) begin
+                    `ifdef DEBUG
+                    $display(" sent:           %p,\n received sout0: %p,\n received sout1: %p PKT ON PORT0 NOT IGNORED WHILE PORT0 IS ADDRESSED\n\n", sent_pkt, sout0, sout1);
+                    `endif
+                    tr = TEST_FAILED;
                 end
             end
         end
@@ -153,31 +147,28 @@ class scoreboard extends uvm_subscriber #(result_s);
 //------------------------------------------------------------------------------
 // run phase
 //------------------------------------------------------------------------------
-    function void write(result_s t);
-        command_s cmd;
+    function void write(result_transaction t);
+        command_transaction cmd;
         packet_s packet;
-        cmd.address      = 0;
-        cmd.data         = 0;
-        cmd.frame_type   = correct_pck;
-        cmd.op_type      = reset_op;
         do
             while (!cmd_f.try_get(cmd))
                 $fatal(1, "Missing command in self checker");
         while (!(cmd.op_type == regular_op));
 
-        packet = construct_packet(cmd.frame_type, cmd.address, cmd.data);
+        packet = construct_packet(.frame_type(cmd.frame_type), .address({<<{cmd.frame_address}}), .data({<<{cmd.frame_data}}));
 
-        sent_packets_q.push_back(packet);
-        received_packets_sout0_q.push_back(t.packet_sout0);
-        received_packets_sout1_q.push_back(t.packet_sout1);
+        `ifdef DEBUG
+        $display("PACKET DATA: Address: %h, Data: %h, OP Type: %s, Frame Type: %s\n", cmd.frame_address, cmd.frame_data, cmd.op_type.name(), cmd.frame_type.name());
+        $display("PACKET SOUT0: Address: %h, Data: %h, OP Type: %s, Frame Type: %s\n", t.packet_sout0.address.data, t.packet_sout0.data.data, cmd.op_type.name(), cmd.frame_type.name());
+        $display("PACKET SOUT1: Address: %h, Data: %h, OP Type: %s, Frame Type: %s\n", t.packet_sout1.address.data, t.packet_sout1.data.data, cmd.op_type.name(), cmd.frame_type.name());
+        `endif
+
+        verify_packet(packet, t.packet_sout0, t.packet_sout1);
     endfunction : write
 
 //------------------------------------------------------------------------------
 // check phase
 //------------------------------------------------------------------------------
-    function void check_phase(uvm_phase phase);
-        verify_packets();
-    endfunction : check_phase
 
 
 

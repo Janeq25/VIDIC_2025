@@ -13,18 +13,20 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-class driver extends uvm_component;
-    `uvm_component_utils(driver)
-    
+class result_monitor extends uvm_component;
+    `uvm_component_utils(result_monitor)
+
 //------------------------------------------------------------------------------
 // local variables
 //------------------------------------------------------------------------------
-    protected virtual simple_uart_switch_bfm bfm;
-    uvm_get_port #(command_transaction) command_port;
-    
+
+    protected virtual tinyalu_bfm bfm;
+    uvm_analysis_port #(result_transaction) ap;
+
 //------------------------------------------------------------------------------
 // constructor
 //------------------------------------------------------------------------------
+
     function new (string name, uvm_component parent);
         super.new(name, parent);
     endfunction : new
@@ -32,24 +34,34 @@ class driver extends uvm_component;
 //------------------------------------------------------------------------------
 // build phase
 //------------------------------------------------------------------------------
+
     function void build_phase(uvm_phase phase);
-        if(!uvm_config_db #(virtual simple_uart_switch_bfm)::get(null, "*","bfm", bfm))
-            $fatal(1, "Failed to get BFM");
-        command_port = new("command_port",this);
+        if(!uvm_config_db #(virtual tinyalu_bfm)::get(null, "*","bfm", bfm))
+            `uvm_fatal("RESULT MONITOR", "Failed to get BFM")
+
+        bfm.result_monitor_h = this;
+        ap                   = new("ap",this);
     endfunction : build_phase
-    
-//------------------------------------------------------------------------------
-// run phase
-//------------------------------------------------------------------------------
-    task run_phase(uvm_phase phase);
-        command_transaction command;
 
-        forever begin : command_loop
-            command_port.get(command);
-            bfm.send_op(command.op_type, command.frame_type, command.frame_address, command.frame_data);
-        end : command_loop
-    endtask : run_phase
-    
+//------------------------------------------------------------------------------
+// access function for BFM
+//------------------------------------------------------------------------------
+    // this variable is defined here as static for that you can see it in the
+    // Simvision waveforms.
+    static result_transaction result_t;
 
-endclass : driver
+    function void write_to_monitor(shortint r);
+//        result_transaction result_t;
+        result_t        = new("result_t");
+        result_t.result = r;
+        ap.write(result_t);
+    endfunction : write_to_monitor
+
+
+endclass : result_monitor
+
+
+
+
+
 

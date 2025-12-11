@@ -176,7 +176,6 @@ interface simple_uart_switch_bfm;
 
 
 initial begin : result_monitor_thread
-    result_s result;
     packet_s pck_sout0;
     packet_s pck_sout1;
     @(posedge test_start);
@@ -194,23 +193,25 @@ initial begin : result_monitor_thread
                 end
             end
         join
-        result.packet_sout0 = pck_sout0;
-        result.packet_sout1 = pck_sout1;
-        result_monitor_h.write_to_monitor(result);
+        result_monitor_h.write_to_monitor(pck_sout0, pck_sout1);
+
     end
 end : result_monitor_thread
 
 
 initial begin : cmd_monitor
-    command_s command;
+    command_transaction command;
+    command_s cmd;
     forever begin
         @(posedge clk)begin
             if (op_start) begin
-                command.address = address;
-                command.data = data;
-                command.op_type = op_type;
-                command.frame_type = frame_type;
-                command_monitor_h.write_to_monitor(command);
+
+                cmd.address = address;
+                cmd.data = data;
+                cmd.op_type = op_type;
+                cmd.frame_type = frame_type;
+                command_monitor_h.write_to_monitor(cmd);
+
             end
         end
     end

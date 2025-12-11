@@ -1,6 +1,6 @@
-simple_uart_switch_tb_pkg.sv
-simple_uart_switch_bfm.sv
-../../common/simple_uart_switch.svp
+-F ../../common/tinyalu/tinyalu.f
+tinyalu_tb_pkg.sv
+tinyalu_bfm.sv
 top.sv
 -timescale 1ns/1ps
 +incdir+tb_classes

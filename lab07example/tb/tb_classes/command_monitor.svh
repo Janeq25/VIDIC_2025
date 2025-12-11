@@ -19,53 +19,49 @@ class command_monitor extends uvm_component;
 //------------------------------------------------------------------------------
 // local variables
 //------------------------------------------------------------------------------
-    protected virtual simple_uart_switch_bfm bfm;
+
+    protected virtual tinyalu_bfm bfm;
     uvm_analysis_port #(command_transaction) ap;
 
 //------------------------------------------------------------------------------
 // constructor
 //------------------------------------------------------------------------------
+
     function new (string name, uvm_component parent);
         super.new(name,parent);
-    endfunction
-
-//------------------------------------------------------------------------------
-// monitoring function called from BFM
-//------------------------------------------------------------------------------
-    // this variable is defined here as static for that you can see it in the
-    // Simvision waveforms.
-    static command_transaction command;
-
-    function void write_to_monitor(command_s cmd);
-        logic [7:0] address;
-        logic [7:0] data;
-        address = {<<{cmd.address}};
-        data = {<<{cmd.data}};
-
-        command    = new("command");
-        command.frame_address = address;
-        command.frame_data = data;
-        command.frame_type = cmd.frame_type;
-        command.op_type = cmd.op_type;
-
-
-        `ifdef DEBUG
-        $display("COMMAND MONITOR: Address: %h, Data: %h, OP Type: %s, Frame Type: %s", address, data, cmd.op_type.name(), cmd.frame_type.name());
-        `endif
-        ap.write(command);
-    endfunction : write_to_monitor
+    endfunction : new
 
 //------------------------------------------------------------------------------
 // build phase
 //------------------------------------------------------------------------------
+
     function void build_phase(uvm_phase phase);
-
-        if(!uvm_config_db #(virtual simple_uart_switch_bfm)::get(null, "*","bfm", bfm))
-            $fatal(1, "Failed to get BFM");
-
+        if(!uvm_config_db #(virtual tinyalu_bfm)::get(null, "*","bfm", bfm))
+            `uvm_fatal("COMMAND MONITOR", "Failed to get BFM")
         bfm.command_monitor_h = this;
         ap                    = new("ap",this);
     endfunction : build_phase
 
+//------------------------------------------------------------------------------
+// access function for BMF
+//------------------------------------------------------------------------------
+    // this variable is defined here as static for that you can see it in the
+    // Simvision waveforms.
+    static command_transaction cmd;
+
+    function void write_to_monitor(byte A, byte B, operation_t op);
+//        command_transaction cmd;
+        `uvm_info("COMMAND MONITOR",$sformatf("MONITOR: A: %2h  B: %2h  op: %s",
+                A, B, op.name()), UVM_HIGH);
+        cmd    = new("cmd");
+        cmd.A  = A;
+        cmd.B  = B;
+        cmd.op = op;
+        ap.write(cmd);
+    endfunction : write_to_monitor
+    
+    
+    
 endclass : command_monitor
+
 

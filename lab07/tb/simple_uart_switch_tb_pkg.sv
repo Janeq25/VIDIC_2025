@@ -189,19 +189,22 @@ package simple_uart_switch_tb_pkg;
 
 
 
+    `include "command_transaction.svh"
+    `include "edgeval_only_transaction.svh"
+    `include "correct_frames_transaction.svh"
+    `include "result_transaction.svh"
     `include "coverage.svh"
-    `include "base_tpgen.svh"
-    `include "random_tpgen.svh"
-    `include "edgeval_only_tpgen.svh"
-    `include "correct_frames_tpgen.svh"
+    `include "tpgen.svh"
     `include "scoreboard.svh"
     `include "driver.svh"
     `include "command_monitor.svh"
     `include "result_monitor.svh"
     `include "env.svh"
-
-
-
+    
+    //------------------------------------------------------------------------------
+    // test classes
+    //------------------------------------------------------------------------------
+    
     `include "random_test.svh"
     `include "edgeval_only_test.svh"
     `include "correct_frames_test.svh"

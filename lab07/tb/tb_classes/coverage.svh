@@ -1,7 +1,7 @@
 
 
 
-class coverage extends uvm_subscriber #(command_s);
+class coverage extends uvm_subscriber #(command_transaction);
     `uvm_component_utils(coverage)
 
         protected frame_types_t frame_type;
@@ -62,11 +62,11 @@ class coverage extends uvm_subscriber #(command_s);
 //------------------------------------------------------------------------------
 // subscriber write function
 //------------------------------------------------------------------------------
-    function void write(command_s t);
+    function void write(command_transaction t);
         frame_type = t.frame_type;
         op_type = t.op_type;
-        address = t.address;
-        data = t.data;
+        address = t.frame_address;
+        data = t.frame_data;
         op_cov.sample();
         frame_cov.sample();
         data_cov.sample();

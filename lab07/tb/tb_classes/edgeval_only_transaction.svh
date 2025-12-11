@@ -13,25 +13,27 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-class edgeval_only_test extends random_test;
-    `uvm_component_utils(edgeval_only_test)
+class edgeval_only_transaction extends command_transaction;
+    `uvm_object_utils(edgeval_only_transaction)
+
+//------------------------------------------------------------------------------
+// constraints
+//------------------------------------------------------------------------------
+
+    constraint edge_values {
+        frame_address dist {8'h00:=1, 8'hFF:=2};
+        frame_data dist {8'h00:=1, 8'hFF:=2};
+    }
 
 //------------------------------------------------------------------------------
 // constructor
 //------------------------------------------------------------------------------
 
-    function new (string name, uvm_component parent);
-        super.new(name,parent);
-    endfunction : new
-
-//------------------------------------------------------------------------------
-// build phase
-//------------------------------------------------------------------------------
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        command_transaction::type_id::set_type_override(edgeval_only_transaction::get_type());
-    endfunction : build_phase
+    function new(string name="");
+        super.new(name);
+    endfunction
+    
+    
+endclass : edgeval_only_transaction
 
 
-endclass

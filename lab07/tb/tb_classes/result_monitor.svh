@@ -20,7 +20,7 @@ class result_monitor extends uvm_component;
 // local variables
 //------------------------------------------------------------------------------
     protected virtual simple_uart_switch_bfm bfm;
-    uvm_analysis_port #(result_s) ap;
+    uvm_analysis_port #(result_transaction) ap;
 
 //------------------------------------------------------------------------------
 // constructor
@@ -30,25 +30,38 @@ class result_monitor extends uvm_component;
     endfunction : new
 
 //------------------------------------------------------------------------------
-// monitoring function called from BFM
+// access function for BFM
 //------------------------------------------------------------------------------
-    function void write_to_monitor(result_s r);
+    // this variable is defined here as static for that you can see it in the
+    // Simvision waveforms.
+    static result_transaction result_t;
+
+    function void write_to_monitor(packet_s packet_sout0, packet_s packet_sout1);
+//        result_transaction result_t;
+        result_t        = new("result_t");
+        result_t.packet_sout0 = packet_sout0;
+        result_t.packet_sout1 = packet_sout1;
+
+
         `ifdef DEBUG
-        $display ("RESULT MONITOR:\nsout0: %p\nsout1L %p", r.packet_sout0, r.packet_sout1);
+            $display("RESULT MONITOR: packet sout0: %p, packet sout1: %p\n", packet_sout0, packet_sout1);
         `endif
-        ap.write(r);
+
+        ap.write(result_t);
     endfunction : write_to_monitor
+
 
 //------------------------------------------------------------------------------
 // build phase
 //------------------------------------------------------------------------------
+
     function void build_phase(uvm_phase phase);
         if(!uvm_config_db #(virtual simple_uart_switch_bfm)::get(null, "*","bfm", bfm))
-            $fatal(1, "Failed to get BFM");
+            `uvm_fatal("RESULT MONITOR", "Failed to get BFM")
+
         bfm.result_monitor_h = this;
         ap                   = new("ap",this);
     endfunction : build_phase
-
 
 
 endclass : result_monitor

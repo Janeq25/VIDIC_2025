@@ -13,25 +13,29 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-class edgeval_only_test extends random_test;
-    `uvm_component_utils(edgeval_only_test)
+class correct_frames_transaction extends command_transaction;
+    `uvm_object_utils(correct_frames_transaction)
+
+//------------------------------------------------------------------------------
+// constraints
+//------------------------------------------------------------------------------
+
+    constraint edge_values {
+        frame_address dist {8'h00:=2, [8'h01 : 8'hFE]:=1, 8'hFF:=2};
+        frame_data dist {8'h00:=2, [8'h01 : 8'hFE]:=1, 8'hFF:=2};
+        frame_type dist {correct_pck:=1};
+        op_type dist {regular_op:=1};
+    }
 
 //------------------------------------------------------------------------------
 // constructor
 //------------------------------------------------------------------------------
 
-    function new (string name, uvm_component parent);
-        super.new(name,parent);
-    endfunction : new
-
-//------------------------------------------------------------------------------
-// build phase
-//------------------------------------------------------------------------------
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        command_transaction::type_id::set_type_override(edgeval_only_transaction::get_type());
-    endfunction : build_phase
+    function new(string name="");
+        super.new(name);
+    endfunction
+    
+    
+endclass : correct_frames_transaction
 
 
-endclass

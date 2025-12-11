@@ -13,22 +13,26 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-class correct_frames_test extends uvm_test;
+class correct_frames_test extends random_test;
     `uvm_component_utils(correct_frames_test)
 
-    env env_h;
+//------------------------------------------------------------------------------
+// constructor
+//------------------------------------------------------------------------------
 
     function new (string name, uvm_component parent);
         super.new(name,parent);
     endfunction : new
 
+//------------------------------------------------------------------------------
+// build phase
+//------------------------------------------------------------------------------
+
     function void build_phase(uvm_phase phase);
-        env_h = env::type_id::create("env_h",this);
+        super.build_phase(phase);
+        command_transaction::type_id::set_type_override(correct_frames_transaction::get_type());
     endfunction : build_phase
-    
-    function void end_of_elaboration_phase(uvm_phase phase);
-        super.end_of_elaboration_phase(phase);
-        this.print(); // print test environment topology
-    endfunction : end_of_elaboration_phase
+
 
 endclass
+

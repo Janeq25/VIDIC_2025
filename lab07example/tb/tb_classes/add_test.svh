@@ -13,8 +13,8 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-class edgeval_only_test extends random_test;
-    `uvm_component_utils(edgeval_only_test)
+class add_test extends random_test;
+    `uvm_component_utils(add_test)
 
 //------------------------------------------------------------------------------
 // constructor
@@ -30,7 +30,7 @@ class edgeval_only_test extends random_test;
 
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        command_transaction::type_id::set_type_override(edgeval_only_transaction::get_type());
+        command_transaction::type_id::set_type_override(add_transaction::get_type());
     endfunction : build_phase
 
 
